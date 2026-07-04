@@ -9,6 +9,7 @@
       wait_for_connection:
         delay: 10
         timeout: 120
+      become: false
 
     - name: Update apt cache
       apt:
