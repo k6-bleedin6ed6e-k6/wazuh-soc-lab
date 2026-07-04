@@ -1,0 +1,46 @@
+---
+- name: Install Wazuh agent on honeypot (t3.micro)
+  hosts: honeypot
+  become: true
+  gather_facts: true
+
+  vars:
+    wazuh_manager_ip: "{{ hostvars['wazuh']['ansible_host'] }}"
+
+  tasks:
+    - name: Import Wazuh GPG key
+      apt_key:
+        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+        state: present
+
+    - name: Add Wazuh apt repo
+      apt_repository:
+        repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+        state: present
+        filename: wazuh
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Wazuh agent
+      apt:
+        name: wazuh-agent
+        state: present
+      environment:
+        WAZUH_MANAGER: "{{ wazuh_manager_ip }}"
+        WAZUH_AGENT_NAME: "honeypot-ec2"
+
+    - name: Enable and start Wazuh agent
+      systemd:
+        name: wazuh-agent
+        enabled: yes
+        state: started
+
+    - name: Verify agent is running
+      command: systemctl status wazuh-agent
+      register: agent_status
+
+    - name: Show agent status
+      debug:
+        var: agent_status.stdout_lines

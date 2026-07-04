@@ -1,0 +1,74 @@
+---
+- name: Install Wazuh all-in-one (manager + indexer + dashboard)
+  hosts: wazuh_server
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Wait for SSH to be ready
+      wait_for_connection:
+        delay: 10
+        timeout: 120
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install prerequisites
+      apt:
+        name:
+          - curl
+          - gnupg
+          - apt-transport-https
+        state: present
+
+    - name: Download Wazuh install script
+      command: curl -sO https://packages.wazuh.com/4.12/wazuh-install.sh
+      args:
+        chdir: /root
+        creates: /root/wazuh-install.sh
+
+    - name: Set install script executable
+      file:
+        path: /root/wazuh-install.sh
+        mode: '0700'
+
+    - name: Download Wazuh config generator
+      command: curl -sO https://packages.wazuh.com/4.12/config.yml
+      args:
+        chdir: /root
+        creates: /root/config.yml
+
+    - name: Run Wazuh all-in-one install (takes 5-10 min)
+      command: bash /root/wazuh-install.sh -a --ignore-check
+      args:
+        creates: /etc/wazuh-indexer/opensearch.yml
+      async: 900
+      poll: 30
+      register: wazuh_install
+
+    - name: Show install output
+      debug:
+        var: wazuh_install.stdout_lines
+
+    - name: Fetch generated admin credentials
+      command: tar -O -xvf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt
+      args:
+        chdir: /root
+      register: wazuh_creds
+      ignore_errors: true
+
+    - name: Print credentials (save these)
+      debug:
+        msg: "{{ wazuh_creds.stdout }}"
+
+    - name: Ensure Wazuh services enabled on boot
+      systemd:
+        name: "{{ item }}"
+        enabled: yes
+        state: started
+      loop:
+        - wazuh-manager
+        - wazuh-indexer
+        - wazuh-dashboard
