@@ -16,22 +16,28 @@ echo "  admin IP:  $ADMIN_IP"
 
 # --- 2. terraform apply ---
 echo ""
-echo "[ terraform ] provisioning t3.small..."
+echo "[ terraform ] provisioning c7i-flex.large..."
 cd "$TF_DIR"
 terraform init -upgrade -input=false
 terraform apply -auto-approve \
   -var "admin_ip=$ADMIN_IP"
 
 WAZUH_IP=$(terraform output -raw wazuh-server-public-ip)
+WAZUH_PRIVATE_IP=$(terraform output -raw wazuh-server-private-ip)
 SSH_CMD=$(terraform output -raw ssh-command)
 
 echo ""
-echo "[ terraform ] done — wazuh server: $WAZUH_IP"
+echo "[ terraform ] done — wazuh server: $WAZUH_IP (private: $WAZUH_PRIVATE_IP)"
 
 # --- 3. write ansible inventory ---
+# private_ip is separate from ansible_host on purpose: ansible_host is the
+# public IP (needed for Ansible's own SSH from outside the VPC), private_ip
+# is what agents must use to reach the manager (1514/1515 are security-group-
+# restricted to the VPC CIDR only — the public IP times out even from another
+# instance in the same VPC).
 cat > "$ANSIBLE_DIR/inventory/hosts.ini" <<EOF
 [wazuh_server]
-wazuh ansible_host=$WAZUH_IP
+wazuh ansible_host=$WAZUH_IP private_ip=$WAZUH_PRIVATE_IP
 
 [honeypot]
 honeypot-ec2 ansible_host=34.225.113.167

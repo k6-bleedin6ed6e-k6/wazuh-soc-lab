@@ -25,5 +25,11 @@ variable "honeypot_private_ip" {
 }
 
 variable "instance_type" {
-  default = "t3.medium"
+  # t3.medium isn't on this account's free-tier-eligible instance whitelist —
+  # confirmed 2026-07-07 via a real failed apply (InvalidParameterCombination).
+  # c7i-flex.large (4GB/2vCPU) is the smallest allowed type that meets Wazuh's
+  # actual minimum spec — deliberately not m7i-flex.large, which is on the
+  # whitelist too but is the exact instance type that caused the original
+  # cost-drift teardown.
+  default = "c7i-flex.large"
 }

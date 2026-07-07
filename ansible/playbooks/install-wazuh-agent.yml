@@ -5,17 +5,28 @@
   gather_facts: true
 
   vars:
-    wazuh_manager_ip: "{{ hostvars['wazuh']['ansible_host'] }}"
+    # Must be the manager's PRIVATE IP, not ansible_host (public IP) — 1514/1515
+    # are security-group-restricted to the VPC CIDR only, so agent traffic via
+    # the public IP times out even between instances in the same VPC.
+    # Confirmed 2026-07-07 the hard way.
+    wazuh_manager_ip: "{{ hostvars['wazuh']['private_ip'] }}"
 
   tasks:
     - name: Import Wazuh GPG key
-      apt_key:
+      # apt_key/apt-key are deprecated and removed on newer Ubuntu — same fix
+      # applied to the lynis apt repo earlier this session (2026-07-07).
+      ansible.builtin.get_url:
         url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
-        state: present
+        dest: /tmp/GPG-KEY-WAZUH
+
+    - name: Dearmor GPG key into keyring
+      ansible.builtin.command: gpg --dearmor -o /usr/share/keyrings/wazuh.gpg /tmp/GPG-KEY-WAZUH
+      args:
+        creates: /usr/share/keyrings/wazuh.gpg
 
     - name: Add Wazuh apt repo
       apt_repository:
-        repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+        repo: "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main"
         state: present
         filename: wazuh
 
@@ -24,8 +35,14 @@
         update_cache: yes
 
     - name: Install Wazuh agent
+      # Pinned to match the manager's version exactly (4.12.0, from the manager
+      # playbook's install script) — the 4.x repo channel is rolling and
+      # defaults to the newest release, which Wazuh's own manager rejects
+      # ("Agent version must be lower or equal to manager version"). Confirmed
+      # 2026-07-07 the hard way: 4.14.6 agent vs 4.12.0 manager, enrollment
+      # refused. If the manager version ever changes, this must be updated too.
       apt:
-        name: wazuh-agent
+        name: wazuh-agent=4.12.0-1
         state: present
       environment:
         WAZUH_MANAGER: "{{ wazuh_manager_ip }}"
