@@ -19,20 +19,20 @@ resource "aws_security_group" "wazuh-server" {
     cidr_blocks = [var.admin_ip]
   }
 
-  # Wazuh agent enrollment — VPC only (honeypot connects here)
+  # Wazuh agent enrollment — VPC (EC2 agents) + admin_ip (local workstation agent)
   ingress {
     from_port   = 1515
     to_port     = 1515
     protocol    = "tcp"
-    cidr_blocks = ["172.31.0.0/16"]
+    cidr_blocks = ["172.31.0.0/16", var.admin_ip]
   }
 
-  # Wazuh agent event forwarding — VPC only
+  # Wazuh agent event forwarding — VPC (EC2 agents) + admin_ip (local workstation agent)
   ingress {
     from_port   = 1514
     to_port     = 1514
     protocol    = "tcp"
-    cidr_blocks = ["172.31.0.0/16"]
+    cidr_blocks = ["172.31.0.0/16", var.admin_ip]
   }
 
   # Wazuh API — admin only
