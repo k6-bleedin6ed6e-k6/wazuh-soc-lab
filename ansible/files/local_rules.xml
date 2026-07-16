@@ -1,0 +1,67 @@
+<!-- Local rules -->
+
+<!-- Modify it at your will. -->
+<!-- Copyright (C) 2015, Wazuh Inc. -->
+
+<!-- Example -->
+<group name="local,syslog,sshd,">
+
+  <!--
+  Dec 10 01:02:02 host sshd[1234]: Failed none for root from 1.1.1.1 port 1066 ssh2
+  -->
+  <rule id="100001" level="5">
+    <if_sid>5716</if_sid>
+    <srcip>1.1.1.1</srcip>
+    <description>sshd: authentication failed from IP 1.1.1.1.</description>
+    <group>authentication_failed,pci_dss_10.2.4,pci_dss_10.2.5,</group>
+  </rule>
+
+  <!--
+  M6 exercise, 2026-07-15: real custom correlation rules, not stock ones.
+  Fire when the SAME source IP produces 3+ SSH auth failures within 2
+  minutes - lower threshold than the stock equivalents (5712/5720 need 8
+  in 120s), deliberately more sensitive for this lab. Two rules, not one,
+  covering both failure modes separately: mirrors the exact proven stock
+  pattern (if_matched_sid + same_source_ip + frequency + timeframe) rather
+  than a single rule with a comma-separated sid list, since that specific
+  combination isn't used anywhere in the stock ruleset and wasn't worth
+  betting on unverified after two earlier versions already failed to fire.
+
+  Two real gaps found and fixed while building this, in order:
+  1. First version keyed on if_matched_sid=5716 only ("Failed
+     password/publickey" for a real username). A live test using a
+     nonexistent username matched rule 5710 instead and never fired this.
+  2. Second version switched to if_matched_group=authentication_failed,
+     assuming group-based correlation would catch both failure types.
+     Still never fired - if_matched_group isn't used anywhere in Wazuh's
+     own stock ruleset for this pattern, only if_matched_sid is (confirmed
+     by grepping 0095-sshd_rules.xml directly - stock rule 5712 uses
+     if_matched_sid=5710, stock rule 5720 uses if_matched_sid=5716,
+     always as two separate rules, never combined).
+
+  3. A third, more subtle gap surfaced later (2026-07-16, verified during
+     report data-gathering): rule 100011 depended on if_matched_sid=5716,
+     but real "Failed password" log lines for a VALID username actually
+     classify as the more specific CHILD rule 5760, not 5716 itself -
+     Wazuh always resolves to the deepest matching rule in the tree. So
+     100011 never fired for the realistic wrong-password case, only
+     100010 (nonexistent-user path) ever worked. Confirmed via wazuh-logtest
+     against realistic log lines, not assumed. Fixed: if_matched_sid
+     changed 5716 -> 5760, re-verified with 3 correlated test events -
+     alert now fires as expected.
+  -->
+  <rule id="100010" level="10" frequency="3" timeframe="120">
+    <if_matched_sid>5710</if_matched_sid>
+    <same_source_ip />
+    <description>Repeated SSH logins with a non-existent user from the same source within 2 minutes - possible brute force ($(srcip))</description>
+    <group>authentication_failures,pci_dss_11.4,pci_dss_10.2.4,pci_dss_10.2.5,</group>
+  </rule>
+
+  <rule id="100011" level="10" frequency="3" timeframe="120">
+    <if_matched_sid>5760</if_matched_sid>
+    <same_source_ip />
+    <description>Repeated SSH authentication failures from the same source within 2 minutes - possible brute force ($(srcip))</description>
+    <group>authentication_failures,pci_dss_11.4,pci_dss_10.2.4,pci_dss_10.2.5,</group>
+  </rule>
+
+</group>

@@ -73,3 +73,18 @@
         - wazuh-manager
         - wazuh-indexer
         - wazuh-dashboard
+
+    - name: Deploy custom SSH brute-force correlation rules (M6, 100010/100011)
+      copy:
+        src: ../files/local_rules.xml
+        dest: /var/ossec/etc/rules/local_rules.xml
+        owner: root
+        group: wazuh
+        mode: '0640'
+      notify: restart wazuh-manager
+
+  handlers:
+    - name: restart wazuh-manager
+      systemd:
+        name: wazuh-manager
+        state: restarted
