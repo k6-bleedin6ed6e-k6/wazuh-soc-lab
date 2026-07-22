@@ -35,6 +35,7 @@ echo "[ terraform ] done — wazuh server: $WAZUH_IP (private: $WAZUH_PRIVATE_IP
 # is what agents must use to reach the manager (1514/1515 are security-group-
 # restricted to the VPC CIDR only — the public IP times out even from another
 # instance in the same VPC).
+mkdir -p "$ANSIBLE_DIR/inventory"
 cat > "$ANSIBLE_DIR/inventory/hosts.ini" <<EOF
 [wazuh_server]
 wazuh ansible_host=$WAZUH_IP private_ip=$WAZUH_PRIVATE_IP
